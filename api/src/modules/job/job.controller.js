@@ -28,6 +28,15 @@ const { jobTitle, jobLocation, workingTime, seniorityLevel, jobDescription, tech
    if(!newJob){
        return next(new AppError(messages.company.failToCreate ,500))
    }
+   const updatedCompany = await Company.findByIdAndUpdate(
+    companyId,
+    { $push: { jobs: newJob._id } }, // Push the new job ID to the jobs array
+    { new: true } // Return the updated company document
+  );
+
+  if (!updatedCompany) {
+    return next(new AppError(messages.company.notFound, 404));
+  }
    // ssend response
    return res.status(201).json({
        message: messages.job.createdSuccessfully, 
@@ -35,6 +44,7 @@ const { jobTitle, jobLocation, workingTime, seniorityLevel, jobDescription, tech
        data: newJob 
    });
 }
+// update job
 export const updateJob = async(req,res,next) =>{
       // get data from request
       const {jobId} = req.params
@@ -52,6 +62,7 @@ export const updateJob = async(req,res,next) =>{
           data: updatedJob 
       });
 }
+// delete job
 export const deleteJob = async(req,res,next) =>{
     const {jobId} = req.params
     const deletedJob = await Job.findByIdAndDelete(jobId,req.body, { new: true });
@@ -66,6 +77,7 @@ export const deleteJob = async(req,res,next) =>{
         data: deletedJob 
     });
 }
+
 export const getJobs = async(req,res,next) =>{
      // get data from request
      const jobs = await Job.find()
@@ -88,6 +100,7 @@ export const getJobs = async(req,res,next) =>{
        data: jobs
      });
 }
+
 export const getJob = async(req,res,next) =>{
     const { companyName } = req.query;
 
@@ -150,6 +163,12 @@ export const applyToJob = async (req, res, next) => {
 
     // Create new job application
     const { jobId, userTechSkills, userSoftSkills } = req.body;
+      // Check if the job exists
+  const jobExist = await Job.findById(jobId);
+  if (!jobExist) {
+    return next(new AppError('Job not found', 404));
+  }
+
 
     // Create new application
     const newApplication = await Application.create({

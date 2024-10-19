@@ -9,12 +9,17 @@ import moment from 'moment';  // For easier date handling
 // add company
 export const addCompany = async(req,res,next) =>{
     // get data from request
-    const { companyName, description, industry, address, numberOfEmployees, companyEmail, companyHR } = req.body;
-   // check existance
-    const companyExist = await Company.findOne({companyEmail})
-    if(companyExist){
-        return next(new AppError(messages.company.alreadyExist , 404))
-    }
+    const { companyName, description, industry, address, numberOfEmployees, companyEmail } = req.body;
+    const companyHR = req.authUser._id;
+    // check existance
+    const companyExist = await Company.findOne({$or: [{ companyEmail }, { companyName }]})
+    if (companyExist) {
+      if (companyExist.companyEmail === companyEmail) {
+          return next(new AppError("Email already exist ", 404));
+      } else if (companyExist.companyName === companyName) {
+          return next(new AppError("Name already exist", 404));
+      }
+  }
     // prepare data
     const company = new Company({
       companyName,
@@ -40,9 +45,34 @@ export const addCompany = async(req,res,next) =>{
 // update company
 export const updateCompany = async(req,res,next) =>{
     // get data from request
+    const loggedInUserId =  req.authUser._id;
     const {companyId} = req.params
     const { companyName,description, industry, address, numberOfEmployees, companyEmail, companyHR} = req.body
     
+     // Find the company by ID
+     const company = await Company.findById(companyId);
+     if (!company) {
+         return next(new AppError(messages.company.notFound, 404));
+     }
+ 
+     // Check if the logged-in user is the HR for this company
+     if (company.companyHR.toString() !== loggedInUserId.toString()) {
+         return next(new AppError("You are not authorized to update this company", 403));
+     }
+    // check existance
+    const companyExist = await Company.findOne({
+      $or: [{ companyName }, { companyEmail }],
+      _id: { $ne: companyId } // Exclude the current company by its ID
+  });
+
+  if (companyExist) {
+      if (companyExist.companyEmail === companyEmail) {
+          return next(new AppError("Email already exists", 400));
+      } else if (companyExist.companyName === companyName) {
+          return next(new AppError("Name already exists", 400));
+      }
+  }
+    //update company
     const updatedCompany = await Company.findByIdAndUpdate(companyId, req.body, { new: true });
 
     if (!updatedCompany) {
@@ -57,8 +87,21 @@ export const updateCompany = async(req,res,next) =>{
 }
 // delete company
 export const deleteCompany = async (req,res,next) =>{
+    const loggedInUserId =  req.authUser._id;
+
     const {companyId} = req.params
-    const { companyHR} = req.body
+   // const { companyHR} = req.body
+    // Find the company by ID
+    const company = await Company.findById(companyId);
+    if (!company) {
+        return next(new AppError(messages.company.notFound, 404));
+    }
+
+    // Check if the logged-in user is the HR for this company
+    if (company.companyHR.toString() !== loggedInUserId.toString()) {
+        return next(new AppError("You are not authorized to delete this company", 403));
+    }
+
     const deletedCompany = await Company.findByIdAndDelete(companyId,req.body, { new: true });
 
     if (!deletedCompany) {
@@ -114,7 +157,7 @@ export const getJobApplications = async (req, res) => {
     const { jobId } = req.params;
   
     // Find the job by jobId and ensure it belongs to the authenticated user's company
-    const job = await Job.findOne({ _id: jobId, companyOwner: req.authUser._id });  // Assuming Job has companyOwner field
+    const job = await Job.findOne({ _id: jobId, companyHR: req.authUser._id });  // Assuming Job has companyOwner field
       
       if (!job) {
         return res.status(403).json({

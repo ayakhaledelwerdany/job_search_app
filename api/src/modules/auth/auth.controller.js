@@ -78,6 +78,7 @@ export const confirmEmail = async (req,res,next) =>{
         success: true,
     })
 }
+// resent otp code
 export const resendOtp = async(req,res,next) =>{
     const { email } = req.body;
 
@@ -130,6 +131,9 @@ export const login = async(req,res,next)=>{
     if(!match){
         return next(new AppError(messages.user.invalidCredentials , 400))
     }
+    // Update user status to online
+    userExist.status = 'Online';
+    await userExist.save();
     // generate token
     const token = generateToken({payload:{_id: userExist._id , email}})
     // send response
